@@ -11,8 +11,16 @@ def _resize(image):
     h,w,c = image.shape
     min_dim = min(h, w)
     img_t = image[:, int(w/2-min_dim/2):int(w/2+min_dim/2)]
-    img_t = cv2.resize(img_t, (400, 400))
+    img_t = cv2.resize(img_t, (300, 300))
     return img_t
+
+
+def _histogram_equalization(image):
+    cla = image.copy()
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(2,2))
+    for i in range(2):
+        cla[:, :, i] = clahe.apply(image[:, :, i])
+    return cla 
 
 
 def _flip(image):
@@ -34,6 +42,7 @@ class preproc(object):
 
     def __call__(self, image, targets, phase):
         image_t = _resize(image)
+        image_t = _histogram_equalization(image_t)
         if phase == 'training' or phase == 'validate':
             labels = torch.tensor(
                 np.array([targets]), dtype=torch.long)

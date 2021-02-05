@@ -13,11 +13,17 @@ class dataloader(data.Dataset):
         self.preproc = preproc
         self.imgs_path = []
         self.labels = []
+        self.weights = []
         self.names = []
         self.mode = mode
         if self.mode == 'training' or self.mode == 'validate':
             df = pd.read_csv(txt_path)
+            tmp = []
+            for i in range(5):
+                tmp = df.level[df.level == i].count()
+                self.weights.append(float(len(df.image)/(5*tmp)))
             img_list = list(df['image'])
+            self.weights = torch.tensor(self.weights).float()
         else:
             img_list = listdir(data_path)
         for i in img_list:

@@ -54,6 +54,7 @@ def visualizing(phase, epoch, step, epoch_loss, epoch_acc):
 def train_model(model, criterion, optimizer, scheduler, writer, model_name, batch_size, num_epochs=25):
 
     since = time.time()
+    best_model_wts = copy.deepcopy(model.state_dict())
     lowest_val_loss = 10.0
 
     for epoch in range(num_epochs):
@@ -70,11 +71,11 @@ def train_model(model, criterion, optimizer, scheduler, writer, model_name, batc
                 model.train()  # Set model to training mode
                 # Iterate over data.
                 batch_iterator = iter(DataLoader(
-                    dataloaders[phase], batch_size, shuffle=True, num_workers=4))
+                    dataloaders[phase], batch_size, shuffle=True, num_workers=8))
             else:
                 model.eval()   # Set model to evaluate mode
                 batch_iterator = iter(DataLoader(
-                    dataloaders[phase], batch_size, shuffle=False, num_workers=4))
+                    dataloaders[phase], batch_size, shuffle=False, num_workers=8))
 
             # for images, labels in dataloaders[phase]:
             iteration = int(len(dataloaders[phase])/batch_size)
@@ -115,6 +116,9 @@ def train_model(model, criterion, optimizer, scheduler, writer, model_name, batc
                     val_correct += torch.sum(preds == labels.data)
                     print(
                         f'epoch {epoch} - step {step}/{iteration} - ValidateLoss {loss}')
+
+            if phase == 'train':
+                scheduler.step()
             if phase == 'train':
                 epoch_loss = train_loss / len(dataloaders[phase])
                 epoch_acc = train_correct.double() / len(dataloaders[phase])
@@ -135,6 +139,9 @@ def train_model(model, criterion, optimizer, scheduler, writer, model_name, batc
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_epoch = epoch
 
+        # save full model last epoch
+        if epoch == num_epochs-1:
+            torch.save(model, f'./weights/full_{model_name}_epoch{epoch}.pth')
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(
@@ -142,6 +149,8 @@ def train_model(model, criterion, optimizer, scheduler, writer, model_name, batc
         print('Best val Loss: {:4f}'.format(lowest_val_loss))
         print(f'Best epoch: {best_epoch}')
 
+    # save best model weights
+    torch.save(model, f'./weights/full_{model_name}_epoch{best_epoch}.pth')
     return model
 
 
@@ -149,6 +158,7 @@ if __name__ == "__main__":
     now = datetime.now()
     model_name = f'wide_resnet101_AutoWtdCE_{now.date()}_{now.hour}-{now.minute}'
 
+    # default `log_dir` is "runs" - we'll be more specific here
     writer = SummaryWriter(f'runs/{model_name}')
 
     model_ft = densenet121(pretrained=True)
@@ -156,10 +166,14 @@ if __name__ == "__main__":
     model_ft.classifier = nn.Linear(num_ftrs, 5)
     model_ft = model_ft.to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weight=training.weights.to(device))
 
     # Observe that all parameters are being optimized
     optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.01, momentum=0.9)
 
+    # Decay LR by a factor of 0.1 every 7 epochs
+    exp_lr_scheduler = lr_scheduler.StepLR(
+        optimizer_ft, step_size=10, gamma=0.1)
+
     model_ft = train_model(model_ft, criterion, optimizer_ft,
-                           None, writer, model_name, batch_size=8, num_epochs=10)
+                           exp_lr_scheduler, writer, model_name, batch_size=16, num_epochs=50)
