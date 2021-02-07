@@ -11,6 +11,7 @@ The system requires the following:
   - Opencv
   - Numpy
   - jupyter notebook
+  - torchinfo
  
 ### 2.2. Installation:
 The software cloned with:
